@@ -40,13 +40,22 @@ SweepContext::SweepContext(std::vector<Point*> polyline) : points_(std::move(pol
   tail_(nullptr),
   af_head_(nullptr),
   af_middle_(nullptr),
-  af_tail_(nullptr)
+  af_tail_(nullptr),
+  edge_infos_dirty_(true)
 {
   InitEdges(points_);
 }
 
 void SweepContext::AddHole(const std::vector<Point*>& polyline)
 {
+  // Remember which constraint edges belong to holes so that outline edges
+  // and hole edges can be told apart after the triangulation.
+  size_t num_hole_points = polyline.size();
+  for (size_t i = 0; i < num_hole_points; i++) {
+    size_t j = i < num_hole_points - 1 ? i + 1 : 0;
+    hole_edges_.insert(internal::PointPairKey(polyline[i], polyline[j]));
+  }
+
   InitEdges(polyline);
   for (auto i : polyline) {
     if (point_set_.insert(i).second) {
@@ -98,6 +107,10 @@ void SweepContext::InitTriangulation()
   // Sort points along y-axis
   std::sort(points_.begin(), points_.end(), cmp);
 
+  // Point indices are derived from points_ below, so any edge
+  // classification built from a previous run must be rebuilt.
+  edge_infos_dirty_ = true;
+  edge_infos_.clear();
 }
 
 void SweepContext::InitEdges(const std::vector<Point*>& polyline)
